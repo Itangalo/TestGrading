@@ -21,10 +21,17 @@ function buildMenu() {
   var menuEntries = [];
   if (sheetExists("Maxpoäng")) {
     if (sheetExists("Poäng")) {
-      menuEntries.push({name : "Ta bort kalkylblad för poäng", functionName : "removeScoreSheet"});
+      menuEntries.push({name : "Ta bort blad för elevers poäng", functionName : "removeScoreSheet"});
     }
     else {
-      menuEntries.push({name : "Bygg kalkylblad för poäng", functionName : "buildScoreSheet"});
+      menuEntries.push({name : "Bygg blad för elevers poäng", functionName : "buildScoreSheet"});
+    }
+    if (sheetExists("Poänggränser")) {
+      menuEntries.push({name : "Sätt summativa provbetyg", functionName : "setGrades"});
+      menuEntries.push({name : "Ta bort blad för poänggränser", functionName : "removeThresholdSheet"});
+    }
+    else {
+      menuEntries.push({name : "Lägg till blad för poänggränser", functionName : "buildThresholdSheet"});
     }
   }
   else {
@@ -81,11 +88,23 @@ function removeScoreSheet() {
 }
 
 /**
+ * Menu callback for removing the sheet with score/grading thresholds.
+ */
+function removeThresholdSheet() {
+  var confirm = Browser.msgBox("Är du säker på att du vill radera bladet med poänggränser?", Browser.Buttons.OK_CANCEL);
+  if (confirm == "ok") {
+    SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Poänggränser"));
+    SpreadsheetApp.getActiveSpreadsheet().deleteActiveSheet();
+  }
+  buildMenu();
+}
+
+/**
  * Menu callback for adding an example sheet with build info (maximum scores).
  */
 function addBuildInfo() {
   var buildInfo = SpreadsheetApp.getActiveSpreadsheet().insertSheet("Maxpoäng");
-  var header = [["Uppgift nr / Maxpoäng per kategori", "E", "C", "A", "spec."]];
+  var header = [["Maxpoäng per kategori / Uppgift nr", "E", "C", "A", "spec."]];
   var questions = [["Del 1", "", "", "", ""],
                    ["1", "1", "", "", ""],
                    ["2", "1", "1", "", ""],
@@ -267,5 +286,95 @@ function buildSumColumns(columnStart, columnEnd, categories) {
     var formula = SCORE_SHEET.getRange(3, TOTAL_COLUMN + 1 + parseInt(i), 1).getFormula();
     SCORE_SHEET.getRange(3, TOTAL_COLUMN + 1 + parseInt(i), 1).setFormula(formula + "+" + currentA1 + "3")
       .copyTo(SCORE_SHEET.getRange(FIRST_STUDENT_ROW, TOTAL_COLUMN + 1 + parseInt(i), 1));
+  }
+}
+
+/**
+ * Builds an empty sheet for holding score/grading threshold limits.
+ */
+function buildThresholdSheet() {
+  if (sheetExists("Poänggränser")) {
+    Browser.msgBox("Blad för poänggränser finns redan.");
+    return;
+  }
+
+  // Get the data for building the scoring sheet, and parse it a bit.
+  var buildInfoSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Maxpoäng");
+
+  // Create the sheet.
+  var thresholdSheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet("Poänggränser");
+  SCORE_SHEET.getRange(2, TOTAL_COLUMN, 2, buildInfoSheet.getLastColumn()).copyValuesToRange(thresholdSheet, 3, buildInfoSheet.getLastColumn() + 2, 1, 2);
+  thresholdSheet.getRange(1, 2).setValue("Poänggräns / Summativt omdöme").setNote("Den första raden där poänggränser är uppfyllda kommer att användas. Om du använder provbetyg, sätt F neders i listan.");
+  thresholdSheet.getRange(1, 1).setValue("Antal provbetyg");
+
+  thresholdSheet.getRange(2, 2, 5).setValues(
+    [["Maxat"], ["Trekvart"], ["Halvvägs"], ["80% av det viktigaste"], ["Inget"]]
+  );
+  var gradeColumnA1 = SCORE_SHEET.getRange(2, GRADE_COLUMN).getA1Notation().slice(0, -1);
+  thresholdSheet.getRange(2, 1, 5, 1).setFormulas(
+    [
+      ["=countif(Poäng!" + gradeColumnA1 + ":" + gradeColumnA1 + "; B2)"],
+      ["=countif(Poäng!" + gradeColumnA1 + ":" + gradeColumnA1 + "; B3)"],
+      ["=countif(Poäng!" + gradeColumnA1 + ":" + gradeColumnA1 + "; B4)"],
+      ["=countif(Poäng!" + gradeColumnA1 + ":" + gradeColumnA1 + "; B5)"],
+      ["=countif(Poäng!" + gradeColumnA1 + ":" + gradeColumnA1 + "; B6)"]
+    ]
+  );
+  thresholdSheet.setFrozenColumns(2);
+  thresholdSheet.setFrozenRows(1);
+
+  var maximumScores = SCORE_SHEET.getRange(3, TOTAL_COLUMN, 2, buildInfoSheet.getLastColumn()).getValues().shift();
+  var column = 2;
+  for (var i in maximumScores) {
+    column++;
+    thresholdSheet.getRange(3, column).setValue(maximumScores[i] * .75);
+    thresholdSheet.getRange(4, column).setValue(maximumScores[i] * .5);
+    thresholdSheet.getRange(5, column).setValue(maximumScores[i] * 0.8 * (column == 4));
+    thresholdSheet.getRange(6, column).setValue(0);
+  }
+}
+
+/**
+ * Analyzes the thresholds and sets the appropriate grades.
+ */
+function setGrades() {
+  // Fetch some data we will need.
+  var thresholdSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Poänggränser");
+  var numberOfCategories = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Maxpoäng").getLastColumn();
+  var scores = SCORE_SHEET.getRange(5, TOTAL_COLUMN, SCORE_SHEET.getLastRow() - FIRST_STUDENT_ROW + 1, numberOfCategories).getValues();
+  var thresholds = thresholdSheet.getRange(2, 3, thresholdSheet.getLastRow() - 1, numberOfCategories).getValues();
+
+  // Loop through all the student scores.
+  for (var studentRow in scores) {
+    // Loop through all the thresholds, and analyze against them.
+    for (var row in thresholds) {
+      // We might need to change the score, if the threshold has merged limits. To
+      // avoid chaning the scores permanently, we need to clone a part of the array.
+      var scoresTmp = scores[studentRow].slice(0);
+
+      // Go through the threshold for the point categories, starting from the top.
+      // (That we start from the top makes it easier to manage any cell merges.)
+      thresholdReached = true;
+      for (var column = numberOfCategories - 1; column >= 0; column--) {
+        // Empty cell means it is merged. We sum the scores for these categories.
+        if (thresholds[row][column] === "") {
+          thresholds[row][column] = 0;
+          scoresTmp[column - 1] = scoresTmp[column - 1] + scoresTmp[column];
+        }
+
+        // If the score doesn't reach the threshold, continue to the next threshold right away.
+        if (scoresTmp[column] < thresholds[row][column]) {
+          thresholdReached = false;
+          break;
+        }
+      }
+
+      // If thresholds for all points have been reached, set the grade and continue to
+      // the next student row.
+      if (thresholdReached) {
+        SCORE_SHEET.getRange(5 + parseInt(studentRow), GRADE_COLUMN, 1, 1).setValue(thresholdSheet.getRange(parseInt(row) + 2, 2).getValue());
+        break;
+      }
+    }
   }
 }
