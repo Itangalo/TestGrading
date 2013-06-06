@@ -19,12 +19,18 @@ function onOpen() {
  */
 function buildMenu() {
   var menuEntries = [];
-  if (sheetExists("Poäng")) {
-    menuEntries.push({name : "Ta bort kalkylblad för poäng", functionName : "removeScoreSheet"});
+  if (sheetExists("Maxpoäng")) {
+    if (sheetExists("Poäng")) {
+      menuEntries.push({name : "Ta bort kalkylblad för poäng", functionName : "removeScoreSheet"});
+    }
+    else {
+      menuEntries.push({name : "Bygg kalkylblad för poäng", functionName : "buildScoreSheet"});
+    }
   }
   else {
-    menuEntries.push({name : "Bygg kalkylblad för poäng", functionName : "buildScoreSheet"});
+    menuEntries.push({name : "Lägg till exempelblad för maxpoäng", functionName : "addBuildInfo"});
   }
+
   SpreadsheetApp.getActiveSpreadsheet().addMenu("Poängmall", menuEntries);
 }
 
@@ -71,6 +77,36 @@ function removeScoreSheet() {
     SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(SCORE_SHEET);
     SpreadsheetApp.getActiveSpreadsheet().deleteActiveSheet();
   }
+  buildMenu();
+}
+
+/**
+ * Menu callback for adding an example sheet with build info (maximum scores).
+ */
+function addBuildInfo() {
+  var buildInfo = SpreadsheetApp.getActiveSpreadsheet().insertSheet("Maxpoäng");
+  var header = [["Uppgift nr / Maxpoäng per kategori", "E", "C", "A", "spec."]];
+  var questions = [["Del 1", "", "", "", ""],
+                   ["1", "1", "", "", ""],
+                   ["2", "1", "1", "", ""],
+                   ["3a", "", "1", "", "1"],
+                   ["3b", "", "2", "1", ""],
+                   ["Del 2", "", "", "", ""],
+                   ["4a", "", "1", "2", ""],
+                   ["4b", "1", "1", "", "1"],
+                   ["5", "1", "", "3", "1"]];
+  buildInfo.getRange(1, 1, 1, 5).setValues(header);
+  buildInfo.getRange(1, 2).setNote("Du kan ange vilka kategorier med poäng du vill.");
+  buildInfo.getRange(2, 1, 9, 5).setValues(questions);
+  buildInfo.getRange(2, 1).setBackgroundColor("#00FFFF").setNote("En rad med bara namn, inga poäng, tolkas som ett nytt avsnitt i provet.");
+  buildInfo.getRange(3, 1).setBackgroundColor("beige").setNote("Om du ger en bakgrundsfärg till en fråga kommer färgen att användas i poängbladet också.");
+  buildInfo.getRange(5, 1).setBackgroundColor("beige");
+  buildInfo.getRange(7, 1).setBackgroundColor("#00FFFF");
+  buildInfo.getRange(8, 1).setBackgroundColor("beige");
+  buildInfo.getRange(10, 1).setBackgroundColor("beige");
+  buildInfo.setFrozenColumns(1);
+  buildInfo.setFrozenRows(1);
+
   buildMenu();
 }
 
