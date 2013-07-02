@@ -21,13 +21,13 @@ function buildMenu() {
   var menuEntries = [];
   if (sheetExists("Maxpoäng")) {
     if (sheetExists("Poäng")) {
-      menuEntries.push({name : "Ta bort blad för elevers poäng", functionName : "removeScoreSheet"});
+      menuEntries.push({name : "Ta bort blad för poänginmatning", functionName : "removeScoreSheet"});
     }
     else {
-      menuEntries.push({name : "Bygg blad för elevers poäng", functionName : "buildScoreSheet"});
+      menuEntries.push({name : "Bygg blad för poänginmatning", functionName : "buildScoreSheet"});
     }
     if (sheetExists("Poänggränser")) {
-      menuEntries.push({name : "Sätt summativa provbetyg", functionName : "setGrades"});
+      menuEntries.push({name : "Sätt provbetyg", functionName : "setGrades"});
       menuEntries.push({name : "Ta bort blad för poänggränser", functionName : "removeThresholdSheet"});
     }
     else {
@@ -332,6 +332,10 @@ function buildThresholdSheet() {
     thresholdSheet.getRange(5, column).setValue(maximumScores[i] * 0.8 * (column == 4));
     thresholdSheet.getRange(6, column).setValue(0);
   }
+  // Merge two cells, as an example of how two (or more) point categories can be counted as one.
+  thresholdSheet.getRange(5, column - 1, 1, 2).merge().setNote('Sammanslagna celler markerar att poäng från flera kategorier ska slås ihop.');
+  thresholdSheet.getRange(5, column - 1).setValue(1);
+  buildMenu();
 }
 
 /**
