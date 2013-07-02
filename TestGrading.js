@@ -6,6 +6,7 @@ var GRADE_COLUMN = 2; // Column used for grade.
 var FIRST_STUDENT_ROW = 5; // Row with first student entry.
 var LAST_STUDENT_ROW = 5; // Row with last student entry.
 var SCORE_SHEET = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Poäng"); // The scoring sheet, built by this script.
+var VERSION = '1.0';
 
 /**
  * Adds the custom menu when opening the spreadsheet.
@@ -37,6 +38,7 @@ function buildMenu() {
   else {
     menuEntries.push({name : "Lägg till exempelblad för maxpoäng", functionName : "addBuildInfo"});
   }
+  menuEntries.push({name : "Versionsinfo och hjälp", functionName : "help"});
 
   SpreadsheetApp.getActiveSpreadsheet().addMenu("Poängmall", menuEntries);
 }
@@ -381,4 +383,11 @@ function setGrades() {
       }
     }
   }
+}
+
+/**
+ * Displays version info and a link to the project page (for help).
+ */
+function help() {
+  Browser.msgBox('Version: ' + VERSION + '. Se https://github.com/Itangalo/TestGrading för dokumentation.');
 }
